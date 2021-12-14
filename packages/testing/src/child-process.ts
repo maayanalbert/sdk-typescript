@@ -22,15 +22,24 @@ export async function waitOnChild(child: ChildProcess): Promise<void> {
   });
 }
 
-export async function kill(child: ChildProcess, signal: NodeJS.Signals = 'SIGINT'): Promise<void> {
+export async function kill(child: ChildProcess, signal: NodeJS.Signals = 'SIGINT') {
   if (child.pid === undefined) {
     throw new TypeError('Expected child with pid');
   }
   process.kill(child.pid, signal);
+  // if (process.platform === 'win32') {
+  //   // -PID not supported on Windows
+  //   process.kill(child.pid, signal);
+  // } else {
+  //   process.kill(-child.pid, signal);
+  // }
   try {
     await waitOnChild(child);
-  } catch (err: any) {
-    if (!(err.name === 'ChildProcessError' && err.signal === signal)) {
+  } catch (err) {
+    // Should error if the error is not a child process error or it is a child
+    // process and either the platform is Windows or the signal matches.
+    const shouldError = !(err instanceof ChildProcessError) || (process.platform !== 'win32' && err.signal !== signal);
+    if (shouldError) {
       throw err;
     }
   }
