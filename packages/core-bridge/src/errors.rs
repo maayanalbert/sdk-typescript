@@ -11,6 +11,8 @@ pub static NO_WORKER_ERROR: OnceCell<Root<JsFunction>> = OnceCell::new();
 /// Something unexpected happened, considered fatal
 pub static UNEXPECTED_ERROR: OnceCell<Root<JsFunction>> = OnceCell::new();
 
+static already_registered_errors: OnceCell<bool> = OnceCell::new();
+
 /// This is one of the ways to implement custom errors in neon.
 /// Taken from the answer in GitHub issues: https://github.com/neon-bindings/neon/issues/714
 pub trait CustomError {
@@ -65,6 +67,13 @@ impl CustomError for OnceCell<Root<JsFunction>> {
 /// It expects a single argument, an object with the various Error constructors.
 /// This is a very common pattern in Neon modules.
 pub fn register_errors(mut cx: FunctionContext) -> JsResult<JsUndefined> {
+    // Don't do anything if errors are already registered
+    if already_registered_errors.get() != None && 
+        !already_registered_errors.get().is_none() && 
+        *already_registered_errors.get().unwrap() {
+        return Ok(cx.undefined())
+    }
+    
     let mapping = cx.argument::<JsObject>(0)?;
     let shutdown_error = mapping
         .get(&mut cx, "ShutdownError")?
@@ -87,6 +96,8 @@ pub fn register_errors(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     SHUTDOWN_ERROR.get_or_try_init(|| Ok(shutdown_error))?;
     NO_WORKER_ERROR.get_or_try_init(|| Ok(no_worker_error))?;
     UNEXPECTED_ERROR.get_or_try_init(|| Ok(unexpected_error))?;
+
+    already_registered_errors.get_or_try_init(|| Ok(true))?;
 
     Ok(cx.undefined())
 }
